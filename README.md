@@ -33,52 +33,6 @@ My personal developer portfolio is a fully responsive, single-page website showc
 
 ---
 
-## 🚀 Getting Started
-
-Follow these steps to run the project locally.
-
-### Prerequisites
-
-* [Node.js](https://nodejs.org/) installed on your computer
-* npm (included with Node.js)
-* Git installed on your computer
-
-### 1. Clone the Repository
-
-```bash
-git clone https://github.com/FenequitoJun/jun-portfolio.git
-```
-
-### 2. Navigate to the Project Directory
-
-```bash
-cd jun-portfolio
-```
-
-### 3. Install Dependencies
-
-```bash
-npm install
-```
-
-### 4. Start the Development Server
-
-```bash
-npm run dev
-```
-
-Open the local URL displayed in your terminal to view the portfolio in your browser.
-
-### 5. Build for Production
-
-```bash
-npm run build
-```
-
-The production-ready files will be generated in the `dist` directory.
-
----
-
 ## 📬 Contact
 
 Feel free to reach out for collaboration, feedback, or opportunities.
