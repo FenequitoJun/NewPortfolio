@@ -193,7 +193,7 @@ export default function ProfileCard() {
     <div className="pc-card-wrapper" id="profileCard" ref={wrapRef}>
       <div className="pc-behind"></div>
       <div className="pc-card-shell" ref={shellRef}>
-        <section className="pc-card" ref={cardRef}>
+        <div className="pc-card" ref={cardRef}>
           <div className="pc-inside"></div>
           <div
             className="pc-initials"
@@ -245,7 +245,7 @@ export default function ProfileCard() {
               </button>
             </div>
           </div>
-        </section>
+        </div>
       </div>
     </div>
   );

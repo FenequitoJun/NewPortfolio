@@ -274,6 +274,8 @@
     display:grid;
     border-radius:var(--card-radius);
     position:relative;
+    padding:0;
+    margin:0;
     border:1px solid rgba(255,255,255,.08);
     box-shadow:rgba(0,0,0,.7) calc((var(--pointer-from-left) * 10px) - 3px) calc((var(--pointer-from-top) * 20px) - 6px) 20px -5px;
     transition:transform .8s ease;
