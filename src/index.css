@@ -918,3 +918,8 @@
     .hero{gap:32px}
     .tech-text{height:clamp(70px,12vh,110px)}
   }
+
+.form-error{ margin-top:14px;padding:12px 16px;border-radius:12px;font-size:.85rem; background:rgba(255,95,87,.1);border:1px solid rgba(255,95,87,.35); color:#ff5f57;}
+body.light .form-error{color:#b3261e;border-color:rgba(179,38,30,.4); background:rgba(179,38,30,.08)}
+.cform .btn[disabled]{opacity:.6;cursor:wait;transform:none}
+.field.hp{position:absolute;left:-9999px;opacity:0;height:0;overflow:hidden}
