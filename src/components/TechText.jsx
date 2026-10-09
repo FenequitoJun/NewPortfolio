@@ -1,12 +1,59 @@
 import { useEffect, useRef } from 'react';
 
-export default function TechText({ theme }) {
+export default function TechText({
+  theme,
+  text = 'Jun Fenequito',
+  fontFamily = '',
+  fontWeight = 600,
+  fontSize = 150,
+  letterSpacing = -0.05,
+  reach = 200,
+  softness = 0.7,
+  dashLength = 4,
+  dashGap = 2,
+  strokeWidth = 1.5,
+  lineStyle = 'dashed',
+  reveal = 'letter',
+  specks = 15,
+  selection = true,
+  labels = true,
+  draggable = true,
+  sweep = true,
+  speed = 1,
+  className = '',
+  ...rest
+}) {
   const containerRef = useRef(null);
+  const baseCanvasRef = useRef(null);
+  const overlayCanvasRef = useRef(null);
+
   const wakeRef = useRef(null);
   const settingsRef = useRef(null);
   const clearLayoutRef = useRef(null);
 
   const isLight = theme === 'light' || (typeof theme === 'boolean' && theme);
+
+  // Sync prop changes into settingsRef without restarting the engine
+  if (settingsRef.current) {
+    settingsRef.current.text = text;
+    settingsRef.current.fontFamily = fontFamily;
+    settingsRef.current.fontWeight = fontWeight;
+    settingsRef.current.fontSize = fontSize;
+    settingsRef.current.letterSpacing = letterSpacing;
+    settingsRef.current.reach = reach;
+    settingsRef.current.softness = softness;
+    settingsRef.current.dashLength = dashLength;
+    settingsRef.current.dashGap = dashGap;
+    settingsRef.current.strokeWidth = strokeWidth;
+    settingsRef.current.lineStyle = lineStyle;
+    settingsRef.current.reveal = reveal;
+    settingsRef.current.specks = specks;
+    settingsRef.current.selection = selection;
+    settingsRef.current.labels = labels;
+    settingsRef.current.draggable = draggable;
+    settingsRef.current.sweep = sweep;
+    settingsRef.current.speed = speed;
+  }
 
   // Sync theme changes with settings
   useEffect(() => {
@@ -22,20 +69,40 @@ export default function TechText({ theme }) {
     const container = containerRef.current;
     if (!container) return;
 
+    /* ---- base canvas: in-flow, exactly as the original ---- */
     const canvas = document.createElement('canvas');
+    baseCanvasRef.current = canvas;
     container.appendChild(canvas);
     const ctx = canvas.getContext('2d');
+
+    /* ---- overlay canvas: appended to <body> (NOT container) so
+       position:fixed is true viewport-fixed even though an ancestor
+       (.reveal) carries a transform ---- */
+    const overlay = document.createElement('canvas');
+    overlayCanvasRef.current = overlay;
+    Object.assign(overlay.style, {
+      position: 'fixed',
+      left: '0',
+      top: '0',
+      width: '100vw',
+      height: '100vh',
+      pointerEvents: 'none',
+      zIndex: '30',
+    });
+    document.body.appendChild(overlay);
+    const octx = overlay.getContext('2d');
+
     const scratch = document.createElement('canvas');
     const scratchCtx = scratch.getContext('2d');
-    if (!ctx || !scratchCtx) return;
+    if (!ctx || !octx || !scratchCtx) return;
 
     const LABEL_FONT = '10px ui-monospace, SFMono-Regular, Menlo, Consolas, monospace';
     const FALLOFF_STEPS = 8;
     const SPRING = 320;
     const DAMPING = 22;
 
-    const approach = (cur, target, dt, secs) =>
-      cur + (target - cur) * (1 - Math.exp(-dt / secs));
+    const clamp = (v, min, max) => Math.min(Math.max(v, min), max);
+    const approach = (cur, target, dt, secs) => cur + (target - cur) * (1 - Math.exp(-dt / secs));
 
     const hexToRgb = (hex) => {
       let h = String(hex || '').replace('#', '');
@@ -60,38 +127,42 @@ export default function TechText({ theme }) {
     const signed = (v) => (v > 0 ? `+${v}` : v < 0 ? `−${-v}` : '0');
 
     const reducedMotion = window.matchMedia?.('(prefers-reduced-motion: reduce)').matches;
-    const startLight = document.body.classList.contains('light');
+    const startLight = isLight || document.body.classList.contains('light');
 
     const S = {
-      text: 'Jun Fenequito',
-      fontFamily: '',
-      fontWeight: 600,
-      fontSize: 150,
-      letterSpacing: -0.05,
+      text,
+      fontFamily,
+      fontWeight,
+      fontSize,
+      letterSpacing,
       color: startLight ? '#0f1524' : '#ffffff',
       accentColor: startLight ? '#0077e6' : '#4cc9ff',
-      reach: 200,
-      softness: 0.7,
-      dashLength: 4,
-      dashGap: 2,
-      strokeWidth: 1.5,
-      lineStyle: 'dashed',
-      reveal: 'letter',
-      specks: 15,
-      selection: true,
-      labels: true,
-      draggable: true,
-      sweep: true,
-      speed: 1,
+      reach,
+      softness,
+      dashLength,
+      dashGap,
+      strokeWidth,
+      lineStyle,
+      reveal,
+      specks,
+      selection,
+      labels,
+      draggable,
+      sweep,
+      speed,
     };
     settingsRef.current = S;
 
+    /* width/height = the visual box (base canvas) — layout untouched */
     let width = 1,
       height = 1,
       dpr = 1,
       raf = 0,
       last = performance.now();
-    let visible = true,
+    /* anchor = viewport position of the base canvas top-left, read every frame */
+    let anchorX = 0,
+      anchorY = 0;
+    let containerVisible = true,
       alive = true,
       layoutKey = '',
       requestedFont = '';
@@ -101,11 +172,19 @@ export default function TechText({ theme }) {
       clock = 0,
       pulse = 0,
       placed = false,
-      dragging = -1;
-    const pointer = { x: 0, y: 0, inside: false },
+      dragging = -1,
+      dragMoved = false;
+    const pointer = { cx: 0, cy: 0, x: 0, y: 0, inside: false },
       grab = { x: 0, y: 0 },
       lens = { x: 0, y: 0 };
+    const dragStart = { x: 0, y: 0 };
     const frame = { x1: 0, y1: 0, x2: 0, y2: 0, alpha: 0, index: -1 };
+
+    const updateAnchor = () => {
+      const r = canvas.getBoundingClientRect(); /* viewport-correct even inside transforms */
+      anchorX = r.left;
+      anchorY = r.top;
+    };
 
     clearLayoutRef.current = () => {
       layoutKey = '';
@@ -240,20 +319,25 @@ export default function TechText({ theme }) {
       return next;
     };
 
+    /* hit-test anywhere — offset-aware on BOTH axes (re-grab displaced letters) */
     const glyphAt = (x, y) => {
-      if (!word || y < word.top - 24 || y > word.bottom + 24) return -1;
+      if (!word) return -1;
       let best = -1,
         bestDistance = Infinity;
       glyphs.forEach((glyph, i) => {
         const x1 = glyph.box.x1 + glyph.offset.x;
         const x2 = glyph.box.x2 + glyph.offset.x;
-        const d = x < x1 ? x1 - x : x > x2 ? x - x2 : 0;
+        const y1 = glyph.box.y1 + glyph.offset.y;
+        const y2 = glyph.box.y2 + glyph.offset.y;
+        const dx = x < x1 ? x1 - x : x > x2 ? x - x2 : 0;
+        const dy = y < y1 ? y1 - y : y > y2 ? y - y2 : 0;
+        const d = Math.hypot(dx, dy);
         if (d < bestDistance) {
           bestDistance = d;
           best = i;
         }
       });
-      return bestDistance < 28 ? best : -1;
+      return bestDistance < 30 ? best : -1;
     };
 
     const falloff = (target, cx, cy, radius, strength, softness) => {
@@ -281,6 +365,7 @@ export default function TechText({ theme }) {
       );
     };
 
+    /* lens reveal — base canvas only (local coords) */
     const drawReveal = (s) => {
       const radius = s.reach * dpr;
       const cx = lens.x * dpr,
@@ -304,7 +389,7 @@ export default function TechText({ theme }) {
       scratchCtx.setTransform(1, 0, 0, 1, 0, 0);
       scratchCtx.globalCompositeOperation = 'source-over';
       scratchCtx.clearRect(0, 0, w, h);
-      for (const glyph of glyphs) blit(scratchCtx, glyph.dashes, glyph.offset.x, glyph.offset.y, x0, y0);
+      for (const glyph of glyphs) blit(scratchCtx, glyph.dashes, glyph.offset.x, glyph.offset.y, 0, 0);
       scratchCtx.globalCompositeOperation = 'destination-in';
       scratchCtx.fillStyle = falloff(scratchCtx, cx - x0, cy - y0, radius, 1, s.softness);
       scratchCtx.fillRect(0, 0, w, h);
@@ -327,7 +412,7 @@ export default function TechText({ theme }) {
       return [frame.x1, frame.y2 - d, -1, 0];
     };
 
-    const drawSpecks = (s, a) => {
+    const drawSpecks = (g, s, a) => {
       const w = frame.x2 - frame.x1,
         h = frame.y2 - frame.y1;
       if (w < 2 || h < 2) return;
@@ -354,15 +439,15 @@ export default function TechText({ theme }) {
         const left = Math.round(x - size / 2),
           top = Math.round(y - size / 2);
         if (tone < 0.26 || (large && tone < 0.78)) {
-          ctx.strokeStyle = rgba(s.accentColor, alpha);
-          ctx.strokeRect(left + 0.5, top + 0.5, size, size);
+          g.strokeStyle = rgba(s.accentColor, alpha);
+          g.strokeRect(left + 0.5, top + 0.5, size, size);
           if (large && tone > 0.5) {
-            ctx.fillStyle = rgba(s.accentColor, alpha);
-            ctx.fillRect(Math.round(x) - 1, Math.round(y) - 1, 2, 2);
+            g.fillStyle = rgba(s.accentColor, alpha);
+            g.fillRect(Math.round(x) - 1, Math.round(y) - 1, 2, 2);
           }
         } else {
-          ctx.fillStyle = rgba(s.accentColor, alpha);
-          ctx.fillRect(left, top, size, size);
+          g.fillStyle = rgba(s.accentColor, alpha);
+          g.fillRect(left, top, size, size);
         }
       }
 
@@ -371,13 +456,14 @@ export default function TechText({ theme }) {
         for (let i = 0; i < 4; i++) {
           const [x, y] = perimeterPoint(head - i * 6, w, h);
           const size = i === 0 ? 3 : 2;
-          ctx.fillStyle = rgba(s.accentColor, a * [0.95, 0.55, 0.32, 0.16][i]);
-          ctx.fillRect(Math.round(x - size / 2), Math.round(y - size / 2), size, size);
+          g.fillStyle = rgba(s.accentColor, a * [0.95, 0.55, 0.32, 0.16][i]);
+          g.fillRect(Math.round(x - size / 2), Math.round(y - size / 2), size, size);
         }
       }
     };
 
-    const drawFrame = (s) => {
+    /* g = target context, ax/ay = that canvas's box origin in viewport px */
+    const drawFrame = (g, ax, ay, s) => {
       const glyph = glyphs[frame.index];
       if (!glyph || frame.alpha < 0.01) return;
       const a = frame.alpha;
@@ -385,70 +471,81 @@ export default function TechText({ theme }) {
         y1 = crisp(frame.y1);
       const x2 = crisp(frame.x2),
         y2 = crisp(frame.y2);
-      ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+      g.setTransform(dpr, 0, 0, dpr, ax * dpr, ay * dpr);
 
       const moved = Math.hypot(glyph.offset.x, glyph.offset.y);
       if (moved > 1) {
         const hx = (glyph.box.x1 + glyph.box.x2) / 2;
         const hy = (glyph.box.y1 + glyph.box.y2) / 2;
-        ctx.beginPath();
-        ctx.moveTo(hx, hy);
-        ctx.lineTo(hx + glyph.offset.x, hy + glyph.offset.y);
-        ctx.setLineDash([3, 4]);
-        ctx.lineWidth = 1;
-        ctx.strokeStyle = rgba(s.accentColor, 0.45 * a);
-        ctx.stroke();
-        ctx.setLineDash([]);
-        ctx.beginPath();
-        ctx.rect(Math.round(hx) - 2, Math.round(hy) - 2, 4, 4);
-        ctx.fillStyle = rgba(s.accentColor, 0.7 * a);
-        ctx.fill();
+        g.beginPath();
+        g.moveTo(hx, hy);
+        g.lineTo(hx + glyph.offset.x, hy + glyph.offset.y);
+        g.setLineDash([3, 4]);
+        g.lineWidth = 1;
+        g.strokeStyle = rgba(s.accentColor, 0.45 * a);
+        g.stroke();
+        g.setLineDash([]);
+        g.beginPath();
+        g.rect(Math.round(hx) - 2, Math.round(hy) - 2, 4, 4);
+        g.fillStyle = rgba(s.accentColor, 0.7 * a);
+        g.fill();
       }
 
-      ctx.beginPath();
-      ctx.rect(x1, y1, x2 - x1, y2 - y1);
-      ctx.lineWidth = 1;
-      ctx.strokeStyle = rgba(s.accentColor, 0.5 * a);
-      ctx.stroke();
+      g.beginPath();
+      g.rect(x1, y1, x2 - x1, y2 - y1);
+      g.lineWidth = 1;
+      g.strokeStyle = rgba(s.accentColor, 0.5 * a);
+      g.stroke();
 
-      ctx.beginPath();
+      g.beginPath();
       for (const [cx, cy] of [
         [x1, y1],
         [x2, y1],
         [x2, y2],
         [x1, y2],
       ]) {
-        ctx.rect(Math.round(cx) - 2, Math.round(cy) - 2, 5, 5);
+        g.rect(Math.round(cx) - 2, Math.round(cy) - 2, 5, 5);
       }
-      ctx.fillStyle = rgba(s.accentColor, 0.95 * a);
-      ctx.fill();
+      g.fillStyle = rgba(s.accentColor, 0.95 * a);
+      g.fill();
 
       if (s.specks > 0) {
-        ctx.lineWidth = 1;
-        drawSpecks(s, a);
+        g.lineWidth = 1;
+        drawSpecks(g, s, a);
       }
 
       if (!s.labels) return;
-      ctx.font = LABEL_FONT;
-      ctx.textAlign = 'left';
-      ctx.textBaseline = 'bottom';
-      ctx.fillStyle = rgba(s.accentColor, 0.62 * a);
+      g.font = LABEL_FONT;
+      g.textAlign = 'left';
+      g.textBaseline = 'bottom';
+      g.fillStyle = rgba(s.accentColor, 0.62 * a);
       const label =
         moved > 1
           ? `${signed(Math.round(glyph.offset.x))}, ${signed(Math.round(-glyph.offset.y))}`
           : `${glyph.char}  ${Math.round(glyph.box.x2 - glyph.box.x1)} × ${Math.round(glyph.box.y2 - glyph.box.y1)}`;
-      ctx.fillText(label, Math.round(frame.x1), Math.round(frame.y1) - 7);
+      g.fillText(label, Math.round(frame.x1), Math.round(frame.y1) - 7);
     };
 
     function tick(now) {
       raf = 0;
-      const s = S;
+      const s = settingsRef.current || S;
       if (!s) return;
       const dt = Math.min(0.05, Math.max(0.001, (now - last) / 1000));
       last = now;
       const view = ensureLayout(s);
+      updateAnchor(); /* per-frame: scroll/transform-proof */
 
-      const sweeping = s.sweep && !reducedMotion && !pointer.inside && dragging < 0;
+      /* pointer in box-local coords */
+      pointer.x = pointer.cx - anchorX;
+      pointer.y = pointer.cy - anchorY;
+      pointer.inside =
+        !!word &&
+        pointer.y > view.top - 30 &&
+        pointer.y < view.bottom + 30 &&
+        pointer.x > view.left - 60 &&
+        pointer.x < view.right + 60;
+
+      const sweeping = s.sweep && !reducedMotion && containerVisible && !pointer.inside && dragging < 0;
       if (sweeping) clock += dt * s.speed;
       pulse += dt;
       let targetX = pointer.x,
@@ -473,8 +570,16 @@ export default function TechText({ theme }) {
       let moving = false;
       glyphs.forEach((glyph, i) => {
         if (i === dragging) {
-          glyph.offset.x = approach(glyph.offset.x, pointer.x - grab.x, dt, 0.03);
-          glyph.offset.y = approach(glyph.offset.y, pointer.y - grab.y, dt, 0.03);
+          /* clamp to the VIEWPORT (in local coords) — drag anywhere on
+             the page, never off it */
+          const tx = pointer.x - grab.x;
+          const ty = pointer.y - grab.y;
+          const minX = -anchorX - glyph.box.x1 + 12;
+          const maxX = window.innerWidth - anchorX - glyph.box.x2 - 12;
+          const minY = -anchorY - glyph.box.y1 + 12;
+          const maxY = window.innerHeight - anchorY - glyph.box.y2 - 12;
+          glyph.offset.x = approach(glyph.offset.x, clamp(tx, Math.min(minX, maxX), Math.max(minX, maxX)), dt, 0.03);
+          glyph.offset.y = approach(glyph.offset.y, clamp(ty, Math.min(minY, maxY), Math.max(minY, maxY)), dt, 0.03);
           glyph.velocity.x = 0;
           glyph.velocity.y = 0;
           moving = true;
@@ -526,18 +631,39 @@ export default function TechText({ theme }) {
 
       if (s.draggable) container.style.cursor = dragging >= 0 ? 'grabbing' : focus >= 0 && pointer.inside ? 'grab' : '';
 
+      /* ---- render pass 1: BASE canvas (all at-rest / in-box glyphs) ---- */
       ctx.setTransform(1, 0, 0, 1, 0, 0);
       ctx.globalCompositeOperation = 'source-over';
       ctx.clearRect(0, 0, canvas.width, canvas.height);
+
+      /* ---- render pass 2: OVERLAY (displaced glyphs, viewport coords) ---- */
+      octx.setTransform(1, 0, 0, 1, 0, 0);
+      octx.globalCompositeOperation = 'source-over';
+      octx.clearRect(0, 0, overlay.width, overlay.height);
+
+      const ox = -anchorX * dpr,
+        oy = -anchorY * dpr;
+      let anyDisplaced = false;
+
       for (const glyph of glyphs) {
         const moved = Math.hypot(glyph.offset.x, glyph.offset.y);
-        if (moved > 1) {
+        if (moved > 0.5 && moved <= 1) {
           ctx.globalAlpha = Math.min(1, moved / 24) * 0.55;
-          blit(ctx, glyph.dashes, 0, 0, 0, 0);
+          blit(ctx, glyph.dashes, glyph.offset.x, glyph.offset.y, 0, 0);
           ctx.globalAlpha = 1;
         }
       }
       for (const glyph of glyphs) {
+        const moved = Math.hypot(glyph.offset.x, glyph.offset.y);
+        if (moved <= 1) continue;
+        anyDisplaced = true;
+        octx.globalAlpha = Math.min(1, moved / 24) * 0.55;
+        blit(octx, glyph.dashes, glyph.offset.x, glyph.offset.y, ox, oy);
+        octx.globalAlpha = 1;
+      }
+      for (const glyph of glyphs) {
+        const moved = Math.hypot(glyph.offset.x, glyph.offset.y);
+        if (moved > 1) continue;
         if (glyph.outline < 0.999) {
           ctx.globalAlpha = 1 - glyph.outline;
           blit(ctx, glyph.fill, glyph.offset.x, glyph.offset.y, 0, 0);
@@ -548,18 +674,39 @@ export default function TechText({ theme }) {
         }
         ctx.globalAlpha = 1;
       }
+      for (const glyph of glyphs) {
+        const moved = Math.hypot(glyph.offset.x, glyph.offset.y);
+        if (moved <= 1) continue;
+        if (glyph.outline < 0.999) {
+          octx.globalAlpha = 1 - glyph.outline;
+          blit(octx, glyph.fill, glyph.offset.x, glyph.offset.y, ox, oy);
+        }
+        if (glyph.outline > 0.001) {
+          octx.globalAlpha = glyph.outline;
+          blit(octx, glyph.dashes, glyph.offset.x, glyph.offset.y, ox, oy);
+        }
+        octx.globalAlpha = 1;
+      }
       if (presence > 0.001) drawReveal(s);
-      drawFrame(s);
+
+      /* selection frame follows its glyph's canvas */
+      const fg = glyphs[frame.index];
+      if (fg && Math.hypot(fg.offset.x, fg.offset.y) > 1) {
+        drawFrame(octx, anchorX, anchorY, s);
+      } else {
+        drawFrame(ctx, 0, 0, s);
+      }
 
       const settling =
         moving ||
+        anyDisplaced ||
         Math.abs(presence - (s.reveal === 'area' && active && dragging < 0 ? 1 : 0)) > 0.002 ||
         (frame.alpha > 0.01 && frame.alpha < 0.99);
-      if ((active || settling) && visible && alive) raf = requestAnimationFrame(tick);
+      if ((active || settling) && alive) raf = requestAnimationFrame(tick);
     }
 
     function wake() {
-      if (raf || !visible || !alive) return;
+      if (raf || !alive) return;
       last = performance.now();
       raf = requestAnimationFrame(tick);
     }
@@ -571,67 +718,87 @@ export default function TechText({ theme }) {
       dpr = Math.min(window.devicePixelRatio || 1, 2);
       canvas.width = Math.round(width * dpr);
       canvas.height = Math.round(height * dpr);
+      overlay.width = Math.round(window.innerWidth * dpr);
+      overlay.height = Math.round(window.innerHeight * dpr);
       layoutKey = '';
       wake();
     };
 
     const locate = (e) => {
-      const rect = container.getBoundingClientRect();
-      pointer.x = e.clientX - rect.left;
-      pointer.y = e.clientY - rect.top;
-    };
-    const onMove = (e) => {
-      locate(e);
-      pointer.inside = true;
-      wake();
-    };
-    const onLeave = () => {
-      if (dragging >= 0) return;
-      pointer.inside = false;
-      wake();
-    };
-    const onDown = (e) => {
-      locate(e);
-      pointer.inside = true;
-      if (S.draggable && (e.pointerType !== 'mouse' || e.button === 0)) {
-        const index = glyphAt(pointer.x, pointer.y);
-        if (index >= 0) {
-          dragging = index;
-          grab.x = pointer.x - glyphs[index].offset.x;
-          grab.y = pointer.y - glyphs[index].offset.y;
-          container.setPointerCapture?.(e.pointerId);
-        }
-      }
-      wake();
-    };
-    const onUp = (e) => {
-      if (dragging >= 0) {
-        dragging = -1;
-        container.releasePointerCapture?.(e.pointerId);
-        const rect = container.getBoundingClientRect();
-        pointer.inside =
-          e.clientX >= rect.left &&
-          e.clientX <= rect.right &&
-          e.clientY >= rect.top &&
-          e.clientY <= rect.bottom;
-      }
-      wake();
+      pointer.cx = e.clientX;
+      pointer.cy = e.clientY;
     };
 
-    container.addEventListener('pointermove', onMove, { passive: true });
-    container.addEventListener('pointerenter', onMove, { passive: true });
-    container.addEventListener('pointerdown', onDown, { passive: true });
-    container.addEventListener('pointerup', onUp, { passive: true });
-    container.addEventListener('pointercancel', onUp, { passive: true });
-    container.addEventListener('pointerleave', onLeave, { passive: true });
+    /* global listeners — drags continue anywhere on the page */
+    const onPointerMove = (e) => {
+      locate(e);
+      if (dragging >= 0 && Math.hypot(e.clientX - dragStart.x, e.clientY - dragStart.y) > 4) dragMoved = true;
+      wake();
+    };
+    window.addEventListener('pointermove', onPointerMove, { passive: true });
+
+    const onPointerDown = (e) => {
+      locate(e);
+      const s = settingsRef.current || S;
+      if (!s.draggable) return;
+      if (e.pointerType === 'mouse' && e.button !== 0) return;
+      /* never steal presses from interactive elements */
+      if (e.target && e.target.closest && e.target.closest('a,button,input,textarea,select,label')) return;
+      updateAnchor();
+      const lx = e.clientX - anchorX;
+      const ly = e.clientY - anchorY;
+      const index = glyphAt(lx, ly);
+      if (index >= 0) {
+        dragging = index;
+        dragMoved = false;
+        dragStart.x = e.clientX;
+        dragStart.y = e.clientY;
+        grab.x = lx - glyphs[index].offset.x;
+        grab.y = ly - glyphs[index].offset.y;
+        container.setPointerCapture?.(e.pointerId);
+        e.preventDefault();
+      }
+      wake();
+    };
+    window.addEventListener('pointerdown', onPointerDown, { passive: false });
+
+    const endDrag = () => {
+      if (dragging >= 0) {
+        dragging = -1;
+        wake();
+      }
+    };
+    window.addEventListener('pointerup', endDrag, { passive: true });
+    window.addEventListener('pointercancel', endDrag, { passive: true });
+
+    /* a real drag swallows the click that would land underneath */
+    const onClickCapture = (e) => {
+      if (dragMoved) {
+        dragMoved = false;
+        e.stopPropagation();
+        e.preventDefault();
+      }
+    };
+    window.addEventListener('click', onClickCapture, true);
+
+    /* anchor sync while scrolling — displaced letters ride the page */
+    const onScroll = () => {
+      updateAnchor();
+      wake();
+    };
+    window.addEventListener('scroll', onScroll, { passive: true });
+    window.addEventListener('resize', resize);
 
     const ro = new ResizeObserver(resize);
     ro.observe(container);
 
-    const io = new IntersectionObserver(([entry]) => {
-      visible = entry.isIntersecting;
-      wake();
-    });
+    const io = new IntersectionObserver(
+      ([entry]) => {
+        containerVisible = entry.isIntersecting;
+        wake();
+      },
+      { threshold: 0 }
+    );
     io.observe(container);
 
     if (document.fonts) document.fonts.ready.then(refreshFonts, refreshFonts);
@@ -645,28 +812,37 @@ export default function TechText({ theme }) {
       settingsRef.current = null;
       clearLayoutRef.current = null;
 
-      container.removeEventListener('pointermove', onMove);
-      container.removeEventListener('pointerenter', onMove);
-      container.removeEventListener('pointerdown', onDown);
-      container.removeEventListener('pointerup', onUp);
-      container.removeEventListener('pointercancel', onUp);
-      container.removeEventListener('pointerleave', onLeave);
+      window.removeEventListener('pointermove', onPointerMove);
+      window.removeEventListener('pointerdown', onPointerDown);
+      window.removeEventListener('pointerup', endDrag);
+      window.removeEventListener('pointercancel', endDrag);
+      window.removeEventListener('click', onClickCapture, true);
+      window.removeEventListener('scroll', onScroll);
+      window.removeEventListener('resize', resize);
 
       ro.disconnect();
       io.disconnect();
-      if (container.contains(canvas)) {
+
+      if (container && container.contains(canvas)) {
         container.removeChild(canvas);
       }
+      baseCanvasRef.current = null;
+
+      if (document.body && document.body.contains(overlay)) {
+        document.body.removeChild(overlay);
+      }
+      overlayCanvasRef.current = null;
     };
   }, []);
 
   return (
     <div
       ref={containerRef}
-      className="tech-text"
+      className={`tech-text ${className}`.trim()}
       id="techText"
       role="img"
-      aria-label="Jun Fenequito"
+      aria-label={text}
+      {...rest}
     />
   );
 }
