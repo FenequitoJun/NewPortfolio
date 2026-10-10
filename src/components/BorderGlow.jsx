@@ -2,6 +2,7 @@ import { useRef } from 'react';
 
 export default function BorderGlow({ as: Component = 'div', className = '', children, ...props }) {
   const cardRef = useRef(null);
+  const excluded = /constellation|pc-card/.test(className);
 
   const handlePointerMove = (e) => {
     const el = cardRef.current;
@@ -37,7 +38,7 @@ export default function BorderGlow({ as: Component = 'div', className = '', chil
       {...props}
     >
       {children}
-      <span className="edge-light" aria-hidden="true" />
+      {!excluded && <span className="edge-light" aria-hidden="true" />}
     </Component>
   );
 }

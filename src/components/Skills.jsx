@@ -466,7 +466,7 @@ function SkillConstellation() {
   }, []);
 
   return (
-    <BorderGlow className="card glass span-12 constellation reveal" id="constellation">
+    <div className="card glass span-12 constellation reveal" id="constellation">
       <div className="const-head">
         <h3>Skill Constellation</h3>
         <p ref={hintRef}>// hover to explore · click two nodes to send a packet</p>
@@ -479,7 +479,7 @@ function SkillConstellation() {
           <small></small>
         </span>
       </div>
-    </BorderGlow>
+    </div>
   );
 }
 

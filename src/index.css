@@ -1045,3 +1045,9 @@ body.light .form-error{color:#b3261e;border-color:rgba(179,38,30,.4); background
   .pdu-toast strong{color:var(--text);font-weight:600}
   .pdu-toast small{color:var(--muted);display:block}
   body.light .pdu-toast{background:rgba(255,255,255,.95)}
+
+/* BorderGlow must NEVER render inside the Skills Constellation */
+.constellation.border-glow-card::before,
+.constellation.border-glow-card::after,
+.constellation > .edge-light{display:none!important}
+
