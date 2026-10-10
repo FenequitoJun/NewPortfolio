@@ -17,6 +17,9 @@ My personal developer portfolio is a fully responsive, single-page website showc
 * ⌨️ **Typewriter Effect** — Cycles through different developer roles.
 * 📱 **Fully Responsive Design** — Supports screen sizes from 320px to 4K, including gyroscope-based tilt effects on mobile devices.
 * ♿ **Accessibility Support** — Includes reduced-motion support, ARIA labels, and keyboard-friendly interactions.
+* 📖 **Project Case Studies** — click any project to open a glass modal with the problem, my approach, and what I learned.
+* ⌨️ **Built-in Terminal** — a hidden CLI easter egg (press or tap the button ~ ) with real commands likesudo hire-jun`.
+* ✨ **Skill Constellation + Packet Simulator** — an interactive skill graph where clicking two nodes sends an animated packet across the route with a Packet Tracer-style delivery report.
 
 ---
 
