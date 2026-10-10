@@ -1,5 +1,7 @@
+import { useState } from 'react';
 import BorderGlow from './BorderGlow';
 import { PROJECTS } from '../data/site';
+import CaseStudyModal from './CaseStudyModal';
 
 function ProjectThumb({ project }) {
   if (project.shot) {
@@ -103,6 +105,8 @@ function ProjectThumb({ project }) {
 }
 
 export default function Projects() {
+  const [active, setActive] = useState(null);
+
   return (
     <section id="projects">
       <h2 className="sec-title">Projects</h2>
@@ -128,10 +132,23 @@ export default function Projects() {
                   {link.label}
                 </a>
               ))}
+              {project.case && (
+                <a
+                  href="#"
+                  onClick={(e) => {
+                    e.preventDefault();
+                    setActive(project);
+                  }}
+                >
+                  📖 Case Study
+                </a>
+              )}
             </div>
           </BorderGlow>
         ))}
       </div>
+
+      <CaseStudyModal project={active} open={!!active} onClose={() => setActive(null)} />
     </section>
   );
 }

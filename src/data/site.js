@@ -98,6 +98,11 @@ export const PROJECTS = [
       { label: 'Live Demo ↗', href: 'https://tide-trace.vercel.app/' },
       { label: 'Source Code ↗', href: 'https://github.com/FenequitoJun' },
     ],
+    case: {
+      problem: 'Coastal communities in the Visayas track clean-ups and reef sightings in scattered group chats — nothing is archived, verified, or measurable, so the real impact of small acts stays invisible.',
+      approach: 'I designed and built a community-powered web app where anyone can log a "trace" — a sighting, clean-up, or story — verify others\' traces, and see monthly impact stats. I handled the full cycle: UX flows, front-end architecture, and deployment to Vercel.',
+      learned: 'Designing for low-friction data entry, thinking about trust systems through community verification, and shipping a real product end-to-end instead of stopping at a demo.',
+    },
   },
   {
     title: 'Full MERN Task',
@@ -112,6 +117,11 @@ export const PROJECTS = [
       { label: 'Source Code ↗', href: 'https://github.com/FenequitoJun' },
     ],
     skeletonVariant: 'mern',
+    case: {
+      problem: 'I needed to understand the full request cycle — not just rendering UI, but how data actually travels from a form to a database and back.',
+      approach: 'Built a task manager on the MERN stack: React front-end, Express REST API, MongoDB persistence. Implemented full CRUD with proper loading and error states and a clean component structure.',
+      learned: 'How REST conventions map to UI actions, environment-based configuration, and how much easier state management gets when the API is designed around the UI\'s needs.',
+    },
   },
   {
     title: 'Dagyang App',
@@ -128,6 +138,11 @@ export const PROJECTS = [
       },
     ],
     figmaType: 'dagyang',
+    case: {
+      problem: 'Turning a rough idea for a community mobile app into a flow that actually makes sense — before writing a single line of code.',
+      approach: 'Designed the full wireframe set in Figma — every screen, state, and transition — then connected them into a clickable prototype so the flow could be tested with real navigation instead of static screenshots.',
+      learned: 'Prototyping early saves weeks later: most of my layout mistakes happened on the Figma canvas, where fixing them costs nothing.',
+    },
   },
   {
     title: 'We Tell',
@@ -144,6 +159,11 @@ export const PROJECTS = [
       },
     ],
     figmaType: 'wetell',
+    case: {
+      problem: 'Exploring how a story-driven mobile experience should pace its content — where polish matters as much as structure.',
+      approach: 'Built an interactive Figma prototype with scaled, fixed-size screens and clickable transitions, iterating on spacing and flow until the narrative felt natural to step through.',
+      learned: 'Content-scaling decisions, prototype-level micro-interactions, and how to give a static design the feeling of motion before any code exists.',
+    },
   },
   {
     title: 'My Old Portfolio (v1)',
@@ -158,6 +178,11 @@ export const PROJECTS = [
       { label: 'Source Code ↗', href: 'https://github.com/FenequitoJun' },
     ],
     skeletonVariant: 'old',
+    case: {
+      problem: 'I had no web presence at all — and no idea how much I would improve in a single year.',
+      approach: 'Built my first complete site from scratch: layout, sections, responsiveness, deployment. No frameworks, no templates — just fundamentals.',
+      learned: 'Everything in v2 is measured against v1. Keeping it online shows exactly how far the design sense and the code have come — which is kind of the point.',
+    },
   },
 ];
 

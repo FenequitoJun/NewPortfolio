@@ -11,6 +11,7 @@ import Projects from './components/Projects';
 import Experience from './components/Experience';
 import Contact from './components/Contact';
 import Footer from './components/Footer';
+import Terminal from './components/Terminal';
 
 export default function App() {
   const [light, toggleTheme] = useTheme();
@@ -55,6 +56,8 @@ export default function App() {
       </main>
 
       <Footer />
+
+      <Terminal onToggleTheme={toggleTheme} />
     </>
   );
 }
