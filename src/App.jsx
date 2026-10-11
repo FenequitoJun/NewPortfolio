@@ -12,6 +12,9 @@ import Experience from './components/Experience';
 import Contact from './components/Contact';
 import Footer from './components/Footer';
 import Terminal from './components/Terminal';
+import KonamiEasterEgg from './components/KonamiEasterEgg';
+import PacketSnake from './components/PacketSnake';
+import ReflexDuel from './components/ReflexDuel';
 
 export default function App() {
   const [light, toggleTheme] = useTheme();
@@ -58,6 +61,9 @@ export default function App() {
       <Footer />
 
       <Terminal onToggleTheme={toggleTheme} />
+      <KonamiEasterEgg />
+      <PacketSnake />
+      <ReflexDuel />
     </>
   );
 }

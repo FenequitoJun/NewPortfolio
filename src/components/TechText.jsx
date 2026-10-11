@@ -357,12 +357,29 @@ export default function TechText({
       return gradient;
     };
 
-    const blit = (target, art, dx, dy, originX, originY) => {
-      target.drawImage(
-        art.image,
-        Math.round((art.left + dx) * dpr - originX),
-        Math.round((art.top + dy) * dpr - originY)
-      );
+    let overlayHasContent = false;
+    let overlayDpr = Math.min(window.devicePixelRatio || 1, 1.5);
+
+    const blit = (target, art, dx, dy, originX, originY, scale = dpr) => {
+      if (scale === dpr) {
+        target.drawImage(
+          art.image,
+          Math.round((art.left + dx) * dpr - originX),
+          Math.round((art.top + dy) * dpr - originY)
+        );
+      } else {
+        target.drawImage(
+          art.image,
+          0,
+          0,
+          art.image.width,
+          art.image.height,
+          Math.round((art.left + dx) * scale - originX),
+          Math.round((art.top + dy) * scale - originY),
+          Math.round((art.image.width * scale) / dpr),
+          Math.round((art.image.height * scale) / dpr)
+        );
+      }
     };
 
     /* lens reveal — base canvas only (local coords) */
@@ -389,7 +406,7 @@ export default function TechText({
       scratchCtx.setTransform(1, 0, 0, 1, 0, 0);
       scratchCtx.globalCompositeOperation = 'source-over';
       scratchCtx.clearRect(0, 0, w, h);
-      for (const glyph of glyphs) blit(scratchCtx, glyph.dashes, glyph.offset.x, glyph.offset.y, 0, 0);
+      for (const glyph of glyphs) blit(scratchCtx, glyph.dashes, glyph.offset.x, glyph.offset.y, 0, 0, dpr);
       scratchCtx.globalCompositeOperation = 'destination-in';
       scratchCtx.fillStyle = falloff(scratchCtx, cx - x0, cy - y0, radius, 1, s.softness);
       scratchCtx.fillRect(0, 0, w, h);
@@ -399,7 +416,7 @@ export default function TechText({
       ctx.globalAlpha = 1;
     };
 
-    const crisp = (v) => (Math.round(v * dpr) + 0.5) / dpr;
+    const crisp = (v, scale = dpr) => (Math.round(v * scale) + 0.5) / scale;
 
     const perimeterPoint = (distance, w, h) => {
       let d = ((distance % (2 * (w + h))) + 2 * (w + h)) % (2 * (w + h));
@@ -420,7 +437,10 @@ export default function TechText({
       const seed = frame.index + 1;
       const grid = 3;
 
-      for (let k = 0; k < s.specks; k++) {
+      const isMobile = typeof window !== 'undefined' && window.innerWidth < 640;
+      const speckCount = Math.round(s.specks * (isMobile ? 0.5 : 1));
+
+      for (let k = 0; k < speckCount; k++) {
         const period = 0.5 + noise(seed, k, 11) * 1.2;
         const t = pulse / period + noise(seed, k, 17);
         const cycle = Math.floor(t);
@@ -463,15 +483,15 @@ export default function TechText({
     };
 
     /* g = target context, ax/ay = that canvas's box origin in viewport px */
-    const drawFrame = (g, ax, ay, s) => {
+    const drawFrame = (g, ax, ay, s, scale = dpr) => {
       const glyph = glyphs[frame.index];
       if (!glyph || frame.alpha < 0.01) return;
       const a = frame.alpha;
-      const x1 = crisp(frame.x1),
-        y1 = crisp(frame.y1);
-      const x2 = crisp(frame.x2),
-        y2 = crisp(frame.y2);
-      g.setTransform(dpr, 0, 0, dpr, ax * dpr, ay * dpr);
+      const x1 = crisp(frame.x1, scale),
+        y1 = crisp(frame.y1, scale);
+      const x2 = crisp(frame.x2, scale),
+        y2 = crisp(frame.y2, scale);
+      g.setTransform(scale, 0, 0, scale, ax * scale, ay * scale);
 
       const moved = Math.hypot(glyph.offset.x, glyph.offset.y);
       if (moved > 1) {
@@ -636,73 +656,101 @@ export default function TechText({
       ctx.globalCompositeOperation = 'source-over';
       ctx.clearRect(0, 0, canvas.width, canvas.height);
 
-      /* ---- render pass 2: OVERLAY (displaced glyphs, viewport coords) ---- */
-      octx.setTransform(1, 0, 0, 1, 0, 0);
-      octx.globalCompositeOperation = 'source-over';
-      octx.clearRect(0, 0, overlay.width, overlay.height);
-
-      const ox = -anchorX * dpr,
-        oy = -anchorY * dpr;
-      let anyDisplaced = false;
-
       for (const glyph of glyphs) {
         const moved = Math.hypot(glyph.offset.x, glyph.offset.y);
         if (moved > 0.5 && moved <= 1) {
           ctx.globalAlpha = Math.min(1, moved / 24) * 0.55;
-          blit(ctx, glyph.dashes, glyph.offset.x, glyph.offset.y, 0, 0);
+          blit(ctx, glyph.dashes, glyph.offset.x, glyph.offset.y, 0, 0, dpr);
           ctx.globalAlpha = 1;
         }
-      }
-      for (const glyph of glyphs) {
-        const moved = Math.hypot(glyph.offset.x, glyph.offset.y);
-        if (moved <= 1) continue;
-        anyDisplaced = true;
-        octx.globalAlpha = Math.min(1, moved / 24) * 0.55;
-        blit(octx, glyph.dashes, glyph.offset.x, glyph.offset.y, ox, oy);
-        octx.globalAlpha = 1;
       }
       for (const glyph of glyphs) {
         const moved = Math.hypot(glyph.offset.x, glyph.offset.y);
         if (moved > 1) continue;
         if (glyph.outline < 0.999) {
           ctx.globalAlpha = 1 - glyph.outline;
-          blit(ctx, glyph.fill, glyph.offset.x, glyph.offset.y, 0, 0);
+          blit(ctx, glyph.fill, glyph.offset.x, glyph.offset.y, 0, 0, dpr);
         }
         if (glyph.outline > 0.001) {
           ctx.globalAlpha = glyph.outline;
-          blit(ctx, glyph.dashes, glyph.offset.x, glyph.offset.y, 0, 0);
+          blit(ctx, glyph.dashes, glyph.offset.x, glyph.offset.y, 0, 0, dpr);
         }
         ctx.globalAlpha = 1;
       }
-      for (const glyph of glyphs) {
-        const moved = Math.hypot(glyph.offset.x, glyph.offset.y);
-        if (moved <= 1) continue;
-        if (glyph.outline < 0.999) {
-          octx.globalAlpha = 1 - glyph.outline;
-          blit(octx, glyph.fill, glyph.offset.x, glyph.offset.y, ox, oy);
-        }
-        if (glyph.outline > 0.001) {
-          octx.globalAlpha = glyph.outline;
-          blit(octx, glyph.dashes, glyph.offset.x, glyph.offset.y, ox, oy);
-        }
-        octx.globalAlpha = 1;
-      }
       if (presence > 0.001) drawReveal(s);
 
-      /* selection frame follows its glyph's canvas */
-      const fg = glyphs[frame.index];
-      if (fg && Math.hypot(fg.offset.x, fg.offset.y) > 1) {
-        drawFrame(octx, anchorX, anchorY, s);
-      } else {
-        drawFrame(ctx, 0, 0, s);
+      /* ---- render pass 2: OVERLAY (displaced glyphs, viewport coords) ---- */
+      // B1: The overlay canvas must be SKIPPED ENTIRELY when no glyph is displaced
+      const anyDisplaced = glyphs.some((glyph) => Math.hypot(glyph.offset.x, glyph.offset.y) > 1);
+
+      if (anyDisplaced) {
+        octx.setTransform(1, 0, 0, 1, 0, 0);
+        octx.globalCompositeOperation = 'source-over';
+        octx.clearRect(0, 0, overlay.width, overlay.height);
+        overlayHasContent = true;
+
+        const ox = -anchorX * overlayDpr,
+          oy = -anchorY * overlayDpr;
+
+        for (const glyph of glyphs) {
+          const moved = Math.hypot(glyph.offset.x, glyph.offset.y);
+          if (moved <= 1) continue;
+          octx.globalAlpha = Math.min(1, moved / 24) * 0.55;
+          blit(octx, glyph.dashes, glyph.offset.x, glyph.offset.y, ox, oy, overlayDpr);
+          octx.globalAlpha = 1;
+        }
+        for (const glyph of glyphs) {
+          const moved = Math.hypot(glyph.offset.x, glyph.offset.y);
+          if (moved <= 1) continue;
+          if (glyph.outline < 0.999) {
+            octx.globalAlpha = 1 - glyph.outline;
+            blit(octx, glyph.fill, glyph.offset.x, glyph.offset.y, ox, oy, overlayDpr);
+          }
+          if (glyph.outline > 0.001) {
+            octx.globalAlpha = glyph.outline;
+            blit(octx, glyph.dashes, glyph.offset.x, glyph.offset.y, ox, oy, overlayDpr);
+          }
+          octx.globalAlpha = 1;
+        }
+
+        const fg = glyphs[frame.index];
+        if (fg && Math.hypot(fg.offset.x, fg.offset.y) > 1) {
+          drawFrame(octx, anchorX, anchorY, s, overlayDpr);
+        }
+      } else if (overlayHasContent) {
+        octx.setTransform(1, 0, 0, 1, 0, 0);
+        octx.clearRect(0, 0, overlay.width, overlay.height);
+        overlayHasContent = false;
       }
 
-      const settling =
-        moving ||
-        anyDisplaced ||
-        Math.abs(presence - (s.reveal === 'area' && active && dragging < 0 ? 1 : 0)) > 0.002 ||
-        (frame.alpha > 0.01 && frame.alpha < 0.99);
-      if ((active || settling) && alive) raf = requestAnimationFrame(tick);
+      /* selection frame on base canvas if glyph is not displaced */
+      const fg = glyphs[frame.index];
+      if (!fg || Math.hypot(fg.offset.x, fg.offset.y) <= 1) {
+        drawFrame(ctx, 0, 0, s, dpr);
+      }
+
+      // B1: Loop shutoff: stop when ALL of these are true:
+      // no pointer inside, no glyph moving or displaced (all offsets < 0.05),
+      // presence < 0.002, frame.alpha < 0.002, and (sweep disabled OR container not visible).
+      const anyOffsetSignificant = glyphs.some(
+        (g) => Math.abs(g.offset.x) >= 0.05 || Math.abs(g.offset.y) >= 0.05
+      );
+      const isMoving = moving || anyDisplaced || anyOffsetSignificant;
+      const hasPresence = presence >= 0.002;
+      const hasFrameAlpha = frame.alpha >= 0.002;
+      const canSweep = s.sweep && !reducedMotion && containerVisible;
+
+      const shouldContinue =
+        pointer.inside ||
+        dragging >= 0 ||
+        isMoving ||
+        hasPresence ||
+        hasFrameAlpha ||
+        canSweep;
+
+      if (shouldContinue && alive) {
+        raf = requestAnimationFrame(tick);
+      }
     }
 
     function wake() {
@@ -712,16 +760,26 @@ export default function TechText({
     }
     wakeRef.current = wake;
 
-    const resize = () => {
+    // B1: Cap the overlay's DPR at 1.5; overlay ONLY resizes on window resize
+    const resizeOverlay = () => {
+      overlayDpr = Math.min(window.devicePixelRatio || 1, 1.5);
+      overlay.width = Math.round(window.innerWidth * overlayDpr);
+      overlay.height = Math.round(window.innerHeight * overlayDpr);
+    };
+
+    const resizeContainer = () => {
       width = Math.max(1, container.clientWidth);
       height = Math.max(1, container.clientHeight);
       dpr = Math.min(window.devicePixelRatio || 1, 2);
       canvas.width = Math.round(width * dpr);
       canvas.height = Math.round(height * dpr);
-      overlay.width = Math.round(window.innerWidth * dpr);
-      overlay.height = Math.round(window.innerHeight * dpr);
       layoutKey = '';
       wake();
+    };
+
+    const onWindowResize = () => {
+      resizeOverlay();
+      resizeContainer();
     };
 
     const locate = (e) => {
@@ -787,15 +845,22 @@ export default function TechText({
       wake();
     };
     window.addEventListener('scroll', onScroll, { passive: true });
-    window.addEventListener('resize', resize);
+    window.addEventListener('resize', onWindowResize, { passive: true });
 
-    const ro = new ResizeObserver(resize);
+    const onPointerEnterContainer = () => {
+      wake();
+    };
+    container.addEventListener('pointerenter', onPointerEnterContainer, { passive: true });
+
+    const ro = new ResizeObserver(resizeContainer);
     ro.observe(container);
 
     const io = new IntersectionObserver(
       ([entry]) => {
         containerVisible = entry.isIntersecting;
-        wake();
+        if (containerVisible) {
+          wake();
+        }
       },
       { threshold: 0 }
     );
@@ -803,7 +868,8 @@ export default function TechText({
 
     if (document.fonts) document.fonts.ready.then(refreshFonts, refreshFonts);
 
-    resize();
+    resizeOverlay();
+    resizeContainer();
 
     return () => {
       alive = false;
@@ -818,7 +884,8 @@ export default function TechText({
       window.removeEventListener('pointercancel', endDrag);
       window.removeEventListener('click', onClickCapture, true);
       window.removeEventListener('scroll', onScroll);
-      window.removeEventListener('resize', resize);
+      window.removeEventListener('resize', onWindowResize);
+      container.removeEventListener('pointerenter', onPointerEnterContainer);
 
       ro.disconnect();
       io.disconnect();

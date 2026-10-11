@@ -187,10 +187,16 @@ function SkillConstellation() {
         }
       }
       const p = pduPos();
-      pdu.trail.push({ x: p.x, y: p.y, life: 1 });
+      const isMobile = typeof window !== 'undefined' && window.innerWidth < 640;
+      trailStep = (trailStep + 1) % (isMobile ? 2 : 1);
+      if (trailStep === 0) {
+        pdu.trail.push({ x: p.x, y: p.y, life: 1 });
+      }
       pdu.trail.forEach((tr) => (tr.life -= dt * 2.4));
       pdu.trail = pdu.trail.filter((tr) => tr.life > 0);
     }
+
+    let trailStep = 0;
 
     function drawPacket(x, y, ang) {
       c.save();
@@ -295,10 +301,29 @@ function SkillConstellation() {
       }
     }
 
+    let lastDraw = 0;
     function loop(ts) {
-      if (!lastTs) lastTs = ts;
-      const dt = Math.min(0.05, (ts - lastTs) / 1000);
+      if (!inView || reduced) {
+        raf = 0;
+        return;
+      }
+
+      // B3: loop only RUNS while there is something to animate
+      const isAnimating = !!pdu || !!flash || hover >= 0 || srcSel >= 0;
+      if (!isAnimating) {
+        raf = 0;
+        lastTs = 0;
+        return;
+      }
+
+      raf = requestAnimationFrame(loop);
+
+      // B3: cap animation to ~30fps: only draw if now - lastDraw >= 33ms
+      if (ts - lastDraw < 33) return;
+      const dt = Math.min(0.05, lastTs ? (ts - lastTs) / 1000 : 0.033);
       lastTs = ts;
+      lastDraw = ts;
+
       t += dt;
       if (flash) {
         flash.t += dt / 0.7;
@@ -306,13 +331,18 @@ function SkillConstellation() {
       }
       updatePdu(dt);
       draw();
-      raf = requestAnimationFrame(loop);
     }
 
     function start() {
       if (!raf && inView && !reduced) {
-        lastTs = 0;
-        raf = requestAnimationFrame(loop);
+        const isAnimating = !!pdu || !!flash || hover >= 0 || srcSel >= 0;
+        if (isAnimating) {
+          lastTs = 0;
+          lastDraw = 0;
+          raf = requestAnimationFrame(loop);
+        } else {
+          draw();
+        }
       }
     }
 
@@ -324,20 +354,23 @@ function SkillConstellation() {
     }
 
     function wake() {
-      start();
+      if (!inView || reduced) return;
+      if (!raf) {
+        lastTs = 0;
+        lastDraw = 0;
+        raf = requestAnimationFrame(loop);
+      }
     }
 
     readTheme();
     resize();
-    if (reduced) {
-      t = 0;
-      draw();
-    }
+    draw();
 
     const onPointerMove = (e) => {
       const r = cvs.getBoundingClientRect();
       const mx = e.clientX - r.left,
         my = e.clientY - r.top;
+      const prevHover = hover;
       hover = -1;
       let best = 34;
       NODES.forEach((n, i) => {
@@ -349,12 +382,16 @@ function SkillConstellation() {
         }
       });
       cvs.style.cursor = hover >= 0 ? 'pointer' : 'default';
-      if (!raf && reduced) draw();
+      if (hover >= 0) {
+        wake();
+      } else if (prevHover >= 0) {
+        draw();
+      }
     };
 
     const onPointerLeave = () => {
       hover = -1;
-      if (!raf && reduced) draw();
+      draw();
     };
 
     const onClick = (e) => {
@@ -377,7 +414,7 @@ function SkillConstellation() {
           srcSel = -1;
           hint('selection cleared — click a node to pick a source');
         }
-        if (!raf && reduced) draw();
+        draw();
         return;
       }
       if (pdu) {
@@ -388,13 +425,14 @@ function SkillConstellation() {
       if (srcSel < 0) {
         srcSel = idx;
         hint(`source: ${NODES[idx].n} — now click a destination node`);
-        if (!raf && reduced) draw();
+        draw();
+        wake();
         return;
       }
       if (srcSel === idx) {
         srcSel = -1;
         hint('selection cleared — click a node to pick a source');
-        if (!raf && reduced) draw();
+        draw();
         return;
       }
 
@@ -403,7 +441,7 @@ function SkillConstellation() {
         toast('err', '✖ Destination unreachable', `no route from ${NODES[srcSel].n} to ${NODES[idx].n}`);
         srcSel = -1;
         hint('unreachable — click a node to pick a new source');
-        if (!raf && reduced) draw();
+        draw();
         return;
       }
 
@@ -424,24 +462,30 @@ function SkillConstellation() {
       pdu = { path, seg: 0, t: 0, trail: [] };
       srcSel = -1;
       hint('packet in transit…');
+      draw();
       wake();
     };
 
-    cvs.addEventListener('pointermove', onPointerMove);
-    cvs.addEventListener('pointerleave', onPointerLeave);
+    cvs.addEventListener('pointermove', onPointerMove, { passive: true });
+    cvs.addEventListener('pointerleave', onPointerLeave, { passive: true });
     cvs.addEventListener('click', onClick);
 
     const resizeObs = new ResizeObserver(() => {
       resize();
-      if (!raf && reduced) draw();
+      draw();
+      wake();
     });
     resizeObs.observe(wrap);
 
     const intObs = new IntersectionObserver(
       ([e]) => {
         inView = e.isIntersecting;
-        inView ? start() : stop();
-        if (!inView && reduced) draw();
+        if (inView) {
+          draw();
+          start();
+        } else {
+          stop();
+        }
       },
       { threshold: 0 }
     );
@@ -449,7 +493,8 @@ function SkillConstellation() {
 
     const mutObs = new MutationObserver(() => {
       readTheme();
-      if (!raf && reduced) draw();
+      draw();
+      wake();
     });
     mutObs.observe(document.body, { attributes: true, attributeFilter: ['class'] });
 

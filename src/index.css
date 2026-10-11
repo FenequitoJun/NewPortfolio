@@ -961,19 +961,20 @@ body.light .form-error{color:#b3261e;border-color:rgba(179,38,30,.4); background
   .cs-links a:hover{text-decoration:underline}
 
   /* ============================================================
-     TERMINAL EASTER EGG  (open with ` key or the >_ button)
+     TERMINAL EASTER EGG — blue-accented & noticable
      ============================================================ */
   .term-trigger{
     position:fixed;right:18px;bottom:18px;z-index:1500;
     width:46px;height:46px;border-radius:14px;
-    background:rgba(10,12,18,.65);border:1px solid var(--border);
+    background:rgba(10,12,18,.65);border:1px solid rgba(76,201,255,.45);
+    box-shadow:0 0 14px rgba(76,201,255,.18);
     backdrop-filter:blur(14px);-webkit-backdrop-filter:blur(14px);
     color:var(--a1);cursor:pointer;
     font-family:'JetBrains Mono',monospace;font-size:.85rem;font-weight:600;
     transition:.25s;
   }
-  .term-trigger:hover{border-color:var(--a1);transform:translateY(-2px);box-shadow:0 6px 20px rgba(76,201,255,.2)}
-  body.light .term-trigger{background:rgba(255,255,255,.78)}
+  .term-trigger:hover{border-color:var(--a1);transform:translateY(-2px);box-shadow:0 6px 22px rgba(76,201,255,.32)}
+  body.light .term-trigger{background:rgba(255,255,255,.82);border-color:rgba(0,119,230,.4)}
   .terminal{
     position:fixed;left:50%;bottom:0;z-index:2001;
     width:min(680px,94vw);
@@ -981,17 +982,22 @@ body.light .form-error{color:#b3261e;border-color:rgba(179,38,30,.4); background
     transition:transform .35s cubic-bezier(.2,.9,.3,1);
     border-radius:18px 18px 0 0;overflow:hidden;
     background:rgba(8,10,15,.93);
-    border:1px solid var(--border);border-bottom:none;
+    border:1px solid rgba(76,201,255,.5);border-bottom:none;
     backdrop-filter:blur(20px);-webkit-backdrop-filter:blur(20px);
-    box-shadow:0 -12px 50px rgba(0,0,0,.5);
+    box-shadow:0 -12px 50px rgba(0,0,0,.5), 0 0 30px rgba(76,201,255,.22);
   }
-  body.light .terminal{background:rgba(255,255,255,.95)}
+  body.light .terminal{
+    background:rgba(255,255,255,.96);
+    border-color:rgba(0,119,230,.4);
+    box-shadow:0 -12px 50px rgba(20,40,90,.18), 0 0 26px rgba(0,119,230,.15);
+  }
   .terminal.open{transform:translate(-50%,0)}
   .term-head{
     display:flex;align-items:center;gap:6px;
-    padding:10px 14px;border-bottom:1px solid var(--border);
-    background:rgba(255,255,255,.03);
+    padding:10px 14px;border-bottom:1px solid rgba(76,201,255,.25);
+    background:rgba(76,201,255,.06);
   }
+  body.light .term-head{border-bottom-color:rgba(0,119,230,.2);background:rgba(0,119,230,.05)}
   .term-head i{width:9px;height:9px;border-radius:50%}
   .term-head i:nth-child(1){background:#ff5f57}
   .term-head i:nth-child(2){background:#febc2e}
@@ -1010,10 +1016,12 @@ body.light .form-error{color:#b3261e;border-color:rgba(179,38,30,.4); background
   .t-acc{color:var(--a1)}
   .t-ok{color:#3ddc84}
   .t-err{color:#ff5f57}
-  .term-input{display:flex;align-items:center;gap:8px;padding:10px 14px;border-top:1px solid var(--border)}
+  .term-input{display:flex;align-items:center;gap:8px;padding:10px 14px;border-top:1px solid rgba(76,201,255,.25)}
+  body.light .term-input{border-top-color:rgba(0,119,230,.2)}
   .term-input .p{font-family:'JetBrains Mono',monospace;font-size:.8rem;color:var(--a1);white-space:nowrap}
   .term-input input{flex:1;background:none;border:none;outline:none;color:var(--text);font-family:'JetBrains Mono',monospace;font-size:.8rem}
   @media(max-width:480px){.term-trigger{right:12px;bottom:12px;width:40px;height:40px}}
+
 
   /* ============================================================
      SKILLS CONSTELLATION
@@ -1050,4 +1058,54 @@ body.light .form-error{color:#b3261e;border-color:rgba(179,38,30,.4); background
 .constellation.border-glow-card::before,
 .constellation.border-glow-card::after,
 .constellation > .edge-light{display:none!important}
+
+/* ============================================================
+   EASTER EGGS — Matrix rain + game modals
+   ============================================================ */
+.matrix-rain{
+  position:fixed;inset:0;z-index:5000;
+  pointer-events:none;opacity:0;transition:opacity .4s ease;
+}
+.matrix-rain.show{opacity:1}
+
+.snake-backdrop{
+  position:fixed;inset:0;z-index:2500;
+  background:rgba(4,6,10,.78);
+  backdrop-filter:blur(8px);-webkit-backdrop-filter:blur(8px);
+  display:flex;align-items:center;justify-content:center;
+  padding:20px;opacity:0;pointer-events:none;transition:opacity .25s ease;
+}
+.snake-backdrop.open{opacity:1;pointer-events:auto}
+.snake-panel{
+  width:min(440px,94vw);padding:0;overflow:hidden;
+  transform:translateY(20px) scale(.96);
+  transition:transform .3s cubic-bezier(.2,.9,.3,1);
+}
+.snake-backdrop.open .snake-panel{transform:translateY(0) scale(1)}
+.snake-head{
+  display:flex;align-items:center;justify-content:space-between;
+  padding:12px 16px;border-bottom:1px solid var(--border);
+}
+.snake-head h3{font-family:'JetBrains Mono',monospace;font-size:.78rem;letter-spacing:1px;color:var(--a1)}
+.snake-head h3::before{content:'// '}
+.snake-score{
+  display:flex;justify-content:space-between;padding:10px 16px;
+  font-family:'JetBrains Mono',monospace;font-size:.72rem;color:var(--muted);
+  border-bottom:1px solid var(--border);
+}
+.snake-stage{
+  position:relative;padding:14px;display:flex;justify-content:center;
+  background:repeating-linear-gradient(0deg,rgba(255,255,255,.02) 0 1px,transparent 1px 3px);
+}
+.snake-stage canvas{
+  display:block;width:min(384px,100%);height:auto;
+  border-radius:10px;border:1px solid var(--border);
+  background:rgba(0,0,0,.4);touch-action:none;
+}
+.snake-stage canvas.wide{width:min(560px,100%)}
+.snake-foot{
+  padding:10px 16px 14px;text-align:center;
+  font-family:'JetBrains Mono',monospace;font-size:.68rem;color:var(--muted);
+}
+
 

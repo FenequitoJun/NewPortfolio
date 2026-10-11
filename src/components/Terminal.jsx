@@ -57,8 +57,38 @@ export default function Terminal({ onToggleTheme }) {
   };
 
   useEffect(() => {
+    const handleUnlock = () => {
+      setOpen(true);
+      setLines((prev) => {
+        const welcome = prev.length
+          ? prev
+          : [
+              { text: 'Welcome to jun.sh v2.0', cls: 't-acc', id: 1 },
+              { text: 'Type "help" to see available commands.', cls: 't-out', id: 2 },
+            ];
+        return [
+          ...welcome,
+          {
+            text: '🔓 hidden commands unlocked: snake 🐍 · duel 🎯 — type "help"',
+            cls: 't-ok',
+            id: Date.now() + Math.random(),
+          },
+        ];
+      });
+      addTimeout(() => {
+        inputRef.current?.focus();
+      }, 250);
+    };
+
+    window.addEventListener('jun:unlock-eggs', handleUnlock);
+    return () => window.removeEventListener('jun:unlock-eggs', handleUnlock);
+  }, []);
+
+  useEffect(() => {
     const handleKeyDown = (e) => {
       const tag = (e.target?.tagName || '').toLowerCase();
+      if (document.getElementById('snakeBackdrop')?.classList.contains('open')) return;
+      if (document.getElementById('duelBackdrop')?.classList.contains('open')) return;
       if (e.key === '`' || e.key === '~') {
         if (tag === 'input' || tag === 'textarea') return;
         e.preventDefault();
@@ -115,6 +145,11 @@ export default function Terminal({ onToggleTheme }) {
         print('  ls           list files (sure)');
         print('  clear        clear the terminal');
         print('  sudo hire-jun  try it 😏');
+        print('  konami       🎮 enter the konami code', 't-acc');
+        if (window.junEggsUnlocked) {
+          print('  snake          🐍 launch packet snake', 't-ok');
+          print('  duel           🎯 beat the server', 't-ok');
+        }
       },
       whoami() {
         print('jun fenequito — junior web developer, BS Information Technology.', 't-ok');
@@ -155,6 +190,9 @@ export default function Terminal({ onToggleTheme }) {
         print('about/   projects/   skills/   contact.md   secrets/  ', 't-out');
         print('(secrets is empty. nice try.)', 't-out');
       },
+      clear() {
+        setLines([]);
+      },
       'sudo hire-jun'() {
         print('access granted. initializing recruitment protocol…', 't-ok');
         print('📧 haxme26@gmail.com — opening contact section…', 't-acc');
@@ -162,6 +200,32 @@ export default function Terminal({ onToggleTheme }) {
       },
       'sudo hire'() {
         commands['sudo hire-jun']();
+      },
+      konami() {
+        print('↑↑↓↓←→←→BA accepted. old school. 🎮', 't-ok');
+        addTimeout(() => {
+          window.dispatchEvent(new CustomEvent('jun:konami'));
+        }, 400);
+      },
+      snake() {
+        if (!window.junEggsUnlocked) {
+          print('command not found: snake', 't-err');
+          return;
+        }
+        print('launching packet snake… 🐍', 't-ok');
+        addTimeout(() => {
+          window.dispatchEvent(new CustomEvent('jun:launch-snake'));
+        }, 350);
+      },
+      duel() {
+        if (!window.junEggsUnlocked) {
+          print('command not found: duel', 't-err');
+          return;
+        }
+        print('beat the server… 🎯', 't-ok');
+        addTimeout(() => {
+          window.dispatchEvent(new CustomEvent('jun:launch-duel'));
+        }, 350);
       },
     };
 
